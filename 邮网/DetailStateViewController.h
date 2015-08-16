@@ -10,4 +10,6 @@
 
 @interface DetailStateViewController : UIViewController
 @property (nonatomic, strong) NSString *detailContent;
+@property (nonatomic, strong) NSString *offLineCookie;
+@property (nonatomic, strong) NSDictionary *userDic;
 @end

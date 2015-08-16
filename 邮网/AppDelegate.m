@@ -8,6 +8,7 @@
 
 #import "AppDelegate.h"
 #import "LoginViewController.h"
+#import "DetailStateViewController.h"
 
 @interface AppDelegate ()
 
@@ -20,9 +21,16 @@
     // Override point for customization after application launch.
     self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
     [self.window makeKeyAndVisible];
-    LoginViewController *loginViewController = [[LoginViewController alloc] init];
-    UINavigationController *youWangNavController = [[UINavigationController alloc] initWithRootViewController:loginViewController];
-    self.window.rootViewController = youWangNavController;
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if ([defaults objectForKey:@"username"]) {
+        DetailStateViewController *detailVC = [[DetailStateViewController alloc] init];
+        UINavigationController *youwangNavC = [[UINavigationController alloc] initWithRootViewController:detailVC];
+        self.window.rootViewController = youwangNavC;
+    } else {
+        LoginViewController *loginViewController = [[LoginViewController alloc] init];
+        UINavigationController *youWangNavController = [[UINavigationController alloc] initWithRootViewController:loginViewController];
+        self.window.rootViewController = youWangNavController;
+    }
     return YES;
 }
 

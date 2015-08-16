@@ -11,6 +11,7 @@
 #import "SSKeychain.h"
 #import "SSKeychainQuery.h"
 #import "AFNetworking.h"
+#import "FindUserOnline.h"
 
 @interface LoginViewController ()
 @property (strong, nonatomic) NSString *username;
@@ -162,6 +163,9 @@
 
 - (void)webViewDidFinishLoad:(UIWebView *)webView{
     if (self.password != nil) {
+        [SSKeychain setPassword:self.password
+                     forService:@"gate"
+                        account:self.username];
         NSString *jsCallBack = [NSString stringWithFormat:@"calcMD5('%@')", self.password];
         NSString *result = [webView stringByEvaluatingJavaScriptFromString:jsCallBack];
         self.password = result;
@@ -173,105 +177,16 @@
     } else {
         self.password = [SSKeychain passwordForService:@"邮网" account:self.username];
     }
-    AFHTTPRequestOperationManager *manager = [AFHTTPRequestOperationManager manager];
-//    NSDictionary *parameters = @{@"account":self.username, @"password":self.password};
-    NSLog(@"%@", self.loginString);
-    manager.requestSerializer = [AFHTTPRequestSerializer serializer];
-    manager.responseSerializer = [AFHTTPResponseSerializer serializer];
-    manager.responseSerializer.acceptableContentTypes = [NSSet setWithObjects:@"text/html", nil];
-    [manager GET:self.loginString parameters:nil success:^(AFHTTPRequestOperation *operation, id responseObject) {
-//        NSString *content = [[NSString alloc] initWithData:responseObject encoding:NSUTF8StringEncoding];
-        NSString *loginContent = [[NSString alloc] initWithData:responseObject encoding:NSUTF8StringEncoding];
-        NSError *err = nil;
-        NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"checkcode=\"(\\d+?)\";" options:NSRegularExpressionCaseInsensitive error:&err];
-        NSTextCheckingResult *matchOfCheckcode = [regex firstMatchInString:loginContent options:0 range:NSMakeRange(0, [loginContent length])];
-        NSString *checkCode = nil;
-        if (matchOfCheckcode) {
-            NSRange matchRange = [matchOfCheckcode rangeAtIndex:1];
-            checkCode = [loginContent substringWithRange:matchRange];
-            NSLog(@"checkcode =====%@", checkCode);
-        }
-        NSArray *cookies = [[NSHTTPCookieStorage sharedHTTPCookieStorage] cookies];
-//        NSString *cookieName = nil;
-//        NSString *cookieValue = nil;
-        NSString *cookieString = nil;
-        for (NSHTTPCookie *cookie in cookies) {
-//            cookieName = cookie.name;
-//            cookieValue = cookie.value;
-            cookieString = [NSString stringWithFormat:@"%@=%@", cookie.name, cookie.value];
-            NSLog(@"%@", cookieString);
-        }
-        
-        NSMutableDictionary *loginParams = [[NSMutableDictionary alloc] init];
-        [loginParams setObject:self.username forKey:@"account"];
-        [loginParams setObject:self.password forKey:@"password"];
-        [loginParams setObject:checkCode forKey:@"checkcode"];
-        [loginParams setObject:@"" forKey:@"code"];
-        [loginParams setObject:@"%E7%99%BB+%E5%BD%95" forKey:@"Submit"];
-        [self getcode:cookieString andParamString:loginParams];
-        
-    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-        NSLog(@"%@", error);
-    }];
-
-//    [manager POST:self.loginString parameters:(id) constructingBodyWithBlock: success:<#^(AFHTTPRequestOperation *operation, id responseObject)success#> failure:<#^(AFHTTPRequestOperation *operation, NSError *error)failure#>];
-    
+    FindUserOnline *finduserOnline = [[FindUserOnline alloc] init];
+    [finduserOnline findUsers];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(findusersOnlie:) name:FindUserOnlineNotifi object:nil];
 }
 
-- (void) getcode:(NSString *)cookieString andParamString:(NSMutableDictionary *)params{
-    AFHTTPRequestOperationManager *loginManager = [AFHTTPRequestOperationManager manager];
-    AFHTTPRequestSerializer *requestSerializer = [AFHTTPRequestSerializer serializer];
-    [requestSerializer setValue:cookieString forHTTPHeaderField:@"Cookie"];
-    loginManager.requestSerializer = requestSerializer;
-    loginManager.responseSerializer = [AFHTTPResponseSerializer serializer];
-    [loginManager GET:self.getCodeString parameters:nil success:^(AFHTTPRequestOperation *operation, id responseObject) {
-        NSLog(@"fucking code");
-        [self loginReqauest:params andCookieString:cookieString];
-    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-        NSLog(@"error");
-    }];
-}
-
-//- (void) loginReqauest:(NSMutableDictionary *)params andCookieName:(NSString *)cookieName andCookieValue:(NSString *)cookieValue{
-- (void) loginReqauest:(NSMutableDictionary *)params andCookieString:(NSString *)cookieString {
-    AFHTTPRequestOperationManager *loginManager = [AFHTTPRequestOperationManager manager];
-    AFHTTPRequestSerializer *requestSerializer = [AFHTTPRequestSerializer serializer];
-//    [requestSerializer setValue:cookieValue forHTTPHeaderField:cookieName];
-    [requestSerializer setValue:cookieString forHTTPHeaderField:@"Cookie"];
-//    NSLog(@"cookiename %@", cookieName);
-//    NSLog(@"cookievalue %@", cookieValue);
-    NSLog(@"%@", params);
+- (void) findusersOnlie:(NSNotification *)notifi {
+    NSDictionary *userDic = notifi.object;
+    DetailStateViewController *detailStateViewController = [[DetailStateViewController alloc] init];
+    detailStateViewController.userDic = userDic;
     self.password = nil;
-    loginManager.requestSerializer = requestSerializer;
-    loginManager.responseSerializer = [AFHTTPResponseSerializer serializer];
-    [loginManager POST:self.loginActionString parameters:params success:^(AFHTTPRequestOperation *operation, id responseObject) {
-        NSString *content = [[NSString alloc] initWithData:responseObject encoding:NSUTF8StringEncoding];
-        [self getcurrentOnline:content andCookieString:cookieString];
-    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-        NSLog(@"%@",error);
-    }];
-}
-
-- (void) getcurrentOnline:(NSString *)content andCookieString:(NSString *)cookieString {
-    NSError *error;
-    NSRegularExpression *login = [NSRegularExpression regularExpressionWithPattern:@"info_title" options:NSRegularExpressionCaseInsensitive error:&error];
-    NSRange rangeExist = [login rangeOfFirstMatchInString:content options:0 range:NSMakeRange(0, [content length])];
-    if (!NSEqualRanges(rangeExist, NSMakeRange(NSNotFound, 0))) {
-//        NSLog(@"succ");
-        AFHTTPRequestOperationManager *loginManager = [AFHTTPRequestOperationManager manager];
-        AFHTTPRequestSerializer *requestSerializer = [AFHTTPRequestSerializer serializer];
-        [requestSerializer setValue:cookieString forHTTPHeaderField:@"Cookie"];
-        loginManager.requestSerializer = requestSerializer;
-        loginManager.responseSerializer = [AFHTTPResponseSerializer serializer];
-        [loginManager GET:self.onlineString parameters:nil success:^(AFHTTPRequestOperation *operation, id responseObject) {
-            DetailStateViewController *detailStateViewController = [[DetailStateViewController alloc] init];
-            detailStateViewController.detailContent = [[NSString alloc] initWithData:responseObject encoding:NSUTF8StringEncoding];
-            [self.navigationController pushViewController:detailStateViewController animated:YES];
-        } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-            NSLog(@"fucking");
-        }];
-    } else {
-//        NSLog(@"error");
-    }
+    [self.navigationController pushViewController:detailStateViewController animated:YES];
 }
 @end
